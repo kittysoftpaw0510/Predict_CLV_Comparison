@@ -26,6 +26,7 @@ Original file is located at
    - <a href='#6.1'>6.1 Feature engineering</a>
 - <a href='#7'>7. Machine Learning Model for Customer Lifetime Value Prediction</a>  
 - <a href='#8'>8. Final Clusters for Customer Lifetime Value</a>
+- <a href='#9'>9. Predicted Lifetime Value (PLTV)</a>
 
 <h3> 1. Importing relevant packages and libraries </h3>
 """
@@ -35,15 +36,14 @@ Original file is located at
 #import libraries
 from __future__ import division
 
-from datetime import datetime, timedelta,date
+from datetime import datetime, timedelta, date
 import pandas as pd
 # %matplotlib inline
-from sklearn.metrics import classification_report,confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.cluster import KMeans
-
 
 import plotly as py
 import plotly.offline as pyoff
@@ -59,11 +59,6 @@ import xgboost as xgb
 tx_data = pd.read_csv('/content/data.csv', encoding='cp1252')
 
 """The code initializes the Plotly library for displaying interactive visualizations in a notebook. It then displays the first few rows of the "tx_data" DataFrame.
-
-
-
-
-
 """
 
 pyoff.init_notebook_mode()
@@ -78,41 +73,21 @@ The code converts the "InvoiceDate" column in the "tx_data" DataFrame to a datet
 tx_data['InvoiceDate'] = pd.to_datetime(tx_data['InvoiceDate'])
 
 """The code creates a new column called "InvoiceYearMonth" in the "tx_data" DataFrame, which combines the year and month information from the "InvoiceDate" column into a single numerical value.
-
-
-
-
-
 """
 
-tx_data['InvoiceYearMonth'] = tx_data['InvoiceDate'].map(lambda date: 100*date.year + date.month)
+tx_data['InvoiceYearMonth'] = tx_data['InvoiceDate'].map(lambda d: 100 * d.year + d.month)
 
 """The code computes descriptive statistics for the numerical columns in the "tx_data" DataFrame, such as count, mean, standard deviation, minimum, maximum, and quartile values.
-
-
-
-
-
 """
 
 tx_data.describe()
 
 """The code counts the number of occurrences of each unique value in the "Country" column of the "tx_data" DataFrame and returns the count for each country.
-
-
-
-
-
 """
 
 tx_data['Country'].value_counts()
 
 """The code filters the "tx_data" DataFrame to create a new DataFrame called "tx_uk" that contains only the rows where the "Country" column is equal to 'United Kingdom', and resets the index of the new DataFrame.
-
-
-
-
-
 """
 
 tx_uk = tx_data.query("Country=='United Kingdom'").reset_index(drop=True)
@@ -127,47 +102,27 @@ tx_user.columns = ['CustomerID']
 tx_user.head()
 
 """The code displays the first few rows of the "tx_uk" DataFrame, which contains the transactions data specifically for customers in the United Kingdom.
-
-
-
-
-
 """
 
 tx_uk.head()
 
 """The code calculates the maximum purchase date for each customer in the "tx_uk" DataFrame and stores the results in the "tx_max_purchase" DataFrame with columns "CustomerID" and "MaxPurchaseDate". It then displays the first few rows of the "tx_max_purchase" DataFrame.
-
-
-
-
-
 """
 
 tx_max_purchase = tx_uk.groupby('CustomerID').InvoiceDate.max().reset_index()
-tx_max_purchase.columns = ['CustomerID','MaxPurchaseDate']
+tx_max_purchase.columns = ['CustomerID', 'MaxPurchaseDate']
 tx_max_purchase.head()
 
 """The code calculates the recency (number of days since the last purchase) for each customer in the "tx_max_purchase" DataFrame and adds the results as a new column called "Recency". It then displays the first few rows of the updated DataFrame.
-
-
-
-
-
 """
 
 tx_max_purchase['Recency'] = (tx_max_purchase['MaxPurchaseDate'].max() - tx_max_purchase['MaxPurchaseDate']).dt.days
 tx_max_purchase.head()
 
 """The code merges the "tx_user" DataFrame with the "tx_max_purchase" DataFrame based on the common column "CustomerID" and adds the "Recency" column from the "tx_max_purchase" DataFrame to the "tx_user" DataFrame. It then displays the first few rows of the updated DataFrame.
-
-
-
-
-
 """
 
-tx_user = pd.merge(tx_user, tx_max_purchase[['CustomerID','Recency']], on='CustomerID')
+tx_user = pd.merge(tx_user, tx_max_purchase[['CustomerID', 'Recency']], on='CustomerID')
 tx_user.head()
 
 """<a href=2.1><h3> 2.1 Assigning a recency score</h3></a>
@@ -177,23 +132,18 @@ The code performs K-means clustering on the "Recency" feature of the "tx_user" D
 
 from sklearn.cluster import KMeans
 
-sse={} # error
+sse = {}  # error
 tx_recency = tx_user[['Recency']]
 for k in range(1, 10):
     kmeans = KMeans(n_clusters=k, max_iter=1000).fit(tx_recency)
-    tx_recency["clusters"] = kmeans.labels_  #cluster names corresponding to recency values
-    sse[k] = kmeans.inertia_ #sse corresponding to clusters
+    tx_recency["clusters"] = kmeans.labels_  # cluster names corresponding to recency values
+    sse[k] = kmeans.inertia_  # sse corresponding to clusters
 plt.figure()
 plt.plot(list(sse.keys()), list(sse.values()))
 plt.xlabel("Number of cluster")
 plt.show()
 
 """The code performs K-means clustering with 4 clusters on the "Recency" feature of the "tx_user" DataFrame. It assigns each data point to a cluster based on its recency value.
-
-
-
-
-
 """
 
 kmeans = KMeans(n_clusters=4)
@@ -202,11 +152,6 @@ tx_user['RecencyCluster'] = kmeans.fit_predict(tx_user[['Recency']])
 tx_user.head()
 
 """The code groups the data in the "tx_user" DataFrame based on the "RecencyCluster" column and calculates descriptive statistics (count, mean, standard deviation, minimum, quartiles, and maximum) for the "Recency" column within each cluster.
-
-
-
-
-
 """
 
 tx_user.groupby('RecencyCluster')['Recency'].describe()
@@ -216,26 +161,21 @@ tx_user.groupby('RecencyCluster')['Recency'].describe()
 The code defines a function called "order_cluster" that reorders the clusters based on a target field in a DataFrame. In this specific case, it reorders the "RecencyCluster" column in the "tx_user" DataFrame based on the "Recency" column in descending order. The function returns the DataFrame with the reordered clusters.
 """
 
-def order_cluster(cluster_field_name, target_field_name,df,ascending):
+def order_cluster(cluster_field_name, target_field_name, df, ascending):
     new_cluster_field_name = 'new_' + cluster_field_name
     df_new = df.groupby(cluster_field_name)[target_field_name].mean().reset_index()
-    df_new = df_new.sort_values(by=target_field_name,ascending=ascending).reset_index(drop=True)
+    df_new = df_new.sort_values(by=target_field_name, ascending=ascending).reset_index(drop=True)
     df_new['index'] = df_new.index
-    df_final = pd.merge(df,df_new[[cluster_field_name,'index']], on=cluster_field_name)
-    df_final = df_final.drop([cluster_field_name],axis=1)
-    df_final = df_final.rename(columns={"index":cluster_field_name})
+    df_final = pd.merge(df, df_new[[cluster_field_name, 'index']], on=cluster_field_name)
+    df_final = df_final.drop([cluster_field_name], axis=1)
+    df_final = df_final.rename(columns={"index": cluster_field_name})
     return df_final
 
-tx_user = order_cluster('RecencyCluster', 'Recency',tx_user,False)
+tx_user = order_cluster('RecencyCluster', 'Recency', tx_user, False)
 
 tx_user.head()
 
 """The code groups the "tx_user" DataFrame by the "RecencyCluster" column and calculates descriptive statistics (count, mean, standard deviation, minimum, quartiles, and maximum) for the "Recency" column within each cluster.
-
-
-
-
-
 """
 
 tx_user.groupby('RecencyCluster')['Recency'].describe()
@@ -246,16 +186,11 @@ The code calculates the frequency of purchases for each customer in the "tx_uk" 
 """
 
 tx_frequency = tx_uk.groupby('CustomerID').InvoiceDate.count().reset_index()
-tx_frequency.columns = ['CustomerID','Frequency']
+tx_frequency.columns = ['CustomerID', 'Frequency']
 
 tx_frequency.head()
 
 """The code merges the "tx_user" DataFrame with the "tx_frequency" DataFrame based on the "CustomerID" column, combining the customer information with their corresponding purchase frequency. The updated "tx_user" DataFrame is then displayed using the head() function.
-
-
-
-
-
 """
 
 tx_user = pd.merge(tx_user, tx_frequency, on='CustomerID')
@@ -269,58 +204,43 @@ The code performs K-means clustering on the "Frequency" feature of the customers
 
 from sklearn.cluster import KMeans
 
-sse={} # error
+sse = {}  # error
 tx_recency = tx_user[['Frequency']]
 for k in range(1, 10):
     kmeans = KMeans(n_clusters=k, max_iter=1000).fit(tx_recency)
-    tx_recency["clusters"] = kmeans.labels_  #cluster names corresponding to recency values
-    sse[k] = kmeans.inertia_ #sse corresponding to clusters
+    tx_recency["clusters"] = kmeans.labels_  # cluster names corresponding to frequency values
+    sse[k] = kmeans.inertia_  # sse corresponding to clusters
 plt.figure()
 plt.plot(list(sse.keys()), list(sse.values()))
 plt.xlabel("Number of cluster")
 plt.show()
 
 """The code applies K-means clustering to the "Frequency" feature of the customers, creating a new column called "FrequencyCluster" that assigns each customer to a cluster. The function order_cluster() is used to order the clusters based on the average frequency. The code then displays the descriptive statistics of the frequency for each cluster.
-
-
-
-
-
 """
 
 # Applying k-Means
-kmeans=KMeans(n_clusters=4)
-tx_user['FrequencyCluster']=kmeans.fit_predict(tx_user[['Frequency']])
+kmeans = KMeans(n_clusters=4)
+tx_user['FrequencyCluster'] = kmeans.fit_predict(tx_user[['Frequency']])
 
-#order the frequency cluster
-tx_user = order_cluster('FrequencyCluster', 'Frequency', tx_user, True )
+# order the frequency cluster
+tx_user = order_cluster('FrequencyCluster', 'Frequency', tx_user, True)
 tx_user.groupby('FrequencyCluster')['Frequency'].describe()
 
 """<a href=4><h3>4. Revenue</h3></a>
 
 The code calculates the revenue for each customer by multiplying the unit price with the quantity of items purchased. It then groups the data by customer ID and calculates the sum of revenue for each customer.
-
-
-
-
-
 """
 
-#calculate revenue for each customer
+# calculate revenue for each customer
 tx_uk['Revenue'] = tx_uk['UnitPrice'] * tx_uk['Quantity']
 tx_revenue = tx_uk.groupby('CustomerID').Revenue.sum().reset_index()
 
 tx_revenue.head()
 
 """The code merges the revenue data with the main dataframe 'tx_user' based on the common column 'CustomerID'. It adds the revenue information to the 'tx_user' dataframe and displays the first few rows.
-
-
-
-
-
 """
 
-#merge it with our main dataframe
+# merge it with our main dataframe
 tx_user = pd.merge(tx_user, tx_revenue, on='CustomerID')
 tx_user.head()
 
@@ -331,12 +251,12 @@ The code performs k-means clustering on the revenue data in order to determine t
 
 from sklearn.cluster import KMeans
 
-sse={} # error
+sse = {}  # error
 tx_recency = tx_user[['Revenue']]
 for k in range(1, 10):
     kmeans = KMeans(n_clusters=k, max_iter=1000).fit(tx_recency)
-    tx_recency["clusters"] = kmeans.labels_  #cluster names corresponding to recency values
-    sse[k] = kmeans.inertia_ #sse corresponding to clusters
+    tx_recency["clusters"] = kmeans.labels_  # cluster names corresponding to revenue values
+    sse[k] = kmeans.inertia_  # sse corresponding to clusters
 plt.figure()
 plt.plot(list(sse.keys()), list(sse.values()))
 plt.xlabel("Number of cluster")
@@ -347,42 +267,31 @@ plt.show()
 The code applies k-means clustering on the revenue data to assign customers to different revenue clusters. It then orders the cluster numbers based on the revenue values and displays the summary statistics of each revenue cluster.
 """
 
-#apply clustering
+# apply clustering
 kmeans = KMeans(n_clusters=4)
 tx_user['RevenueCluster'] = kmeans.fit_predict(tx_user[['Revenue']])
 
-#order the cluster numbers
-tx_user = order_cluster('RevenueCluster', 'Revenue',tx_user,True)
+# order the cluster numbers
+tx_user = order_cluster('RevenueCluster', 'Revenue', tx_user, True)
 
-#show details of the dataframe
+# show details of the dataframe
 tx_user.groupby('RevenueCluster')['Revenue'].describe()
 
 """<a href=5><h3>5. Overall Score based on RFM Clsutering</h3></a>
 
 The code calculates the overall score for each customer by summing the values of their recency, frequency, and revenue clusters. It then uses the mean function to display the average recency, frequency, and revenue values for each overall score.
-
-
-
-
-
-
 """
 
-#calculate overall score and use mean() to see details
+# calculate overall score and use mean() to see details
 tx_user['OverallScore'] = tx_user['RecencyCluster'] + tx_user['FrequencyCluster'] + tx_user['RevenueCluster']
-tx_user.groupby('OverallScore')['Recency','Frequency','Revenue'].mean()
+tx_user.groupby('OverallScore')[['Recency', 'Frequency', 'Revenue']].mean()
 
 """The code assigns a segment label to each customer based on their overall score. Customers with an overall score greater than 2 are labeled as "Mid-Value", and customers with an overall score greater than 4 are labeled as "High-Value". The remaining customers are labeled as "Low-Value".
-
-
-
-
-
 """
 
 tx_user['Segment'] = 'Low-Value'
-tx_user.loc[tx_user['OverallScore']>2,'Segment'] = 'Mid-Value'
-tx_user.loc[tx_user['OverallScore']>4,'Segment'] = 'High-Value'
+tx_user.loc[tx_user['OverallScore'] > 2, 'Segment'] = 'Mid-Value'
+tx_user.loc[tx_user['OverallScore'] > 4, 'Segment'] = 'High-Value'
 
 tx_user
 
@@ -391,50 +300,30 @@ tx_user
 tx_uk.head()
 
 """The code provides a summary of the invoice dates in the dataset, including the count, mean, minimum, maximum, and quartile values.
-
-
-
-
-
 """
 
 tx_uk['InvoiceDate'].describe()
 
 """The code filters the dataset tx_uk to create a subset tx_3m containing data from a 3-month time period (March 2011 to May 2011) and another subset tx_6m containing data from a 6-month time period (June 2011 to November 2011). The subsets are reset to have a new index.
-
-
-
-
-
 """
 
-tx_3m = tx_uk[(tx_uk.InvoiceDate.dt.date < date(2011,6,1)) & (tx_uk.InvoiceDate.dt.date >= date(2011,3,1))].reset_index(drop=True) #3 months time
-tx_6m = tx_uk[(tx_uk.InvoiceDate.dt.date >= date(2011,6,1)) & (tx_uk.InvoiceDate.dt.date < date(2011,12,1))].reset_index(drop=True) # 6 months time
+tx_3m = tx_uk[(tx_uk.InvoiceDate.dt.date < date(2011, 6, 1)) & (tx_uk.InvoiceDate.dt.date >= date(2011, 3, 1))].reset_index(drop=True)  # 3 months time
+tx_6m = tx_uk[(tx_uk.InvoiceDate.dt.date >= date(2011, 6, 1)) & (tx_uk.InvoiceDate.dt.date < date(2011, 12, 1))].reset_index(drop=True)  # 6 months time
 
 """The code calculates the revenue for each customer in the 6-month subset tx_6m by multiplying the unit price with the quantity and creates a new dataframe tx_user_6m that aggregates the revenue for each customer by summing it up. The columns are then renamed to 'CustomerID' and 'm6_Revenue'.
-
-
-
-
-
 """
 
-#calculate revenue and create a new dataframe for it
+# calculate revenue and create a new dataframe for it
 tx_6m['Revenue'] = tx_6m['UnitPrice'] * tx_6m['Quantity']
 tx_user_6m = tx_6m.groupby('CustomerID')['Revenue'].sum().reset_index()
-tx_user_6m.columns = ['CustomerID','m6_Revenue']
+tx_user_6m.columns = ['CustomerID', 'm6_Revenue']
 
 tx_user_6m.head()
 
 """The code generates a histogram plot of the 6-month revenue (m6_Revenue) for customers. The revenue values are plotted on the x-axis, and the frequency of occurrence is plotted on the y-axis.
-
-
-
-
-
 """
 
-#plot LTV histogram
+# plot LTV histogram
 plot_data = [
     go.Histogram(
         x=tx_user_6m['m6_Revenue']
@@ -442,8 +331,8 @@ plot_data = [
 ]
 
 plot_layout = go.Layout(
-        title='6m Revenue'
-    )
+    title='6m Revenue'
+)
 fig = go.Figure(data=plot_data, layout=plot_layout)
 pyoff.iplot(fig)
 
@@ -452,34 +341,19 @@ tx_user.head()
 tx_uk.head()
 
 """The code merges the tx_user DataFrame with the tx_user_6m DataFrame based on the 'CustomerID' column, including only the customers who are present in the tx_user_6m timeline.
-
-
-
-
-
 """
 
-tx_merge = pd.merge(tx_user, tx_user_6m, on='CustomerID', how='left') #Only people who are in the timeline of tx_user_6m
+tx_merge = pd.merge(tx_user, tx_user_6m, on='CustomerID', how='left')  # Only people who are in the timeline of tx_user_6m
 
 """The code fills any missing values in the tx_merge DataFrame with zeros.
-
-
-
-
-
 """
 
 tx_merge = tx_merge.fillna(0)
 
 """The code generates a scatter plot to visualize the relationship between the 6-month revenue (LTV) and the RFM score for different customer segments (low-value, mid-value, and high-value). Each segment is represented by a different color and marker size in the plot.
-
-
-
-
-
 """
 
-tx_graph = tx_merge.query("m6_Revenue < 50000") #because max values are ending at 50,000 as seen in graph above
+tx_graph = tx_merge.query("m6_Revenue < 50000")  # because max values are ending at 50,000 as seen in graph above
 
 plot_data = [
     go.Scatter(
@@ -487,123 +361,103 @@ plot_data = [
         y=tx_graph.query("Segment == 'Low-Value'")['m6_Revenue'],
         mode='markers',
         name='Low',
-        marker= dict(size= 7,
-            line= dict(width=1),
-            color= 'blue',
-            opacity= 0.8
-           )
+        marker=dict(size=7,
+                    line=dict(width=1),
+                    color='blue',
+                    opacity=0.8
+                    )
     ),
-        go.Scatter(
+    go.Scatter(
         x=tx_graph.query("Segment == 'Mid-Value'")['OverallScore'],
         y=tx_graph.query("Segment == 'Mid-Value'")['m6_Revenue'],
         mode='markers',
         name='Mid',
-        marker= dict(size= 9,
-            line= dict(width=1),
-            color= 'green',
-            opacity= 0.5
-           )
+        marker=dict(size=9,
+                    line=dict(width=1),
+                    color='green',
+                    opacity=0.5
+                    )
     ),
-        go.Scatter(
+    go.Scatter(
         x=tx_graph.query("Segment == 'High-Value'")['OverallScore'],
         y=tx_graph.query("Segment == 'High-Value'")['m6_Revenue'],
         mode='markers',
         name='High',
-        marker= dict(size= 11,
-            line= dict(width=1),
-            color= 'red',
-            opacity= 0.9
-           )
+        marker=dict(size=11,
+                    line=dict(width=1),
+                    color='red',
+                    opacity=0.9
+                    )
     ),
 ]
 
 plot_layout = go.Layout(
-        yaxis= {'title': "6m LTV"},
-        xaxis= {'title': "RFM Score"},
-        title='LTV'
-    )
+    yaxis={'title': "6m LTV"},
+    xaxis={'title': "RFM Score"},
+    title='LTV'
+)
 fig = go.Figure(data=plot_data, layout=plot_layout)
 pyoff.iplot(fig)
 
 """The code removes outliers from the dataset by filtering out the records where the 6-month revenue (LTV) is above the 99th percentile.
-
-
-
-
-
 """
 
-#remove outliers
-tx_merge = tx_merge[tx_merge['m6_Revenue']<tx_merge['m6_Revenue'].quantile(0.99)]
+# remove outliers
+tx_merge = tx_merge[tx_merge['m6_Revenue'] < tx_merge['m6_Revenue'].quantile(0.99)]
 
 tx_merge.head()
 
 """The code performs K-means clustering on the 6-month revenue (LTV) values to create three clusters. The cluster labels are assigned to the 'LTVCluster' column in the merged dataset.
-
-
-
-
-
 """
 
-#creating 3 clusters
+# creating 3 clusters
 kmeans = KMeans(n_clusters=3)
 tx_merge['LTVCluster'] = kmeans.fit_predict(tx_merge[['m6_Revenue']])
 
 tx_merge.head()
 
 """The code orders the cluster numbers based on the ascending order of the 6-month revenue (LTV) values. It then creates a new cluster dataframe called 'tx_cluster' and displays the statistical details of each cluster's 6-month revenue.
-
-
-
-
-
 """
 
-#order cluster number based on LTV
-tx_merge = order_cluster('LTVCluster', 'm6_Revenue',tx_merge,True)
+# order cluster number based on LTV
+tx_merge = order_cluster('LTVCluster', 'm6_Revenue', tx_merge, True)
 
-#creatinga new cluster dataframe
+# creating a new cluster dataframe
 tx_cluster = tx_merge.copy()
 
-#see details of the clusters
+# see details of the clusters
 tx_cluster.groupby('LTVCluster')['m6_Revenue'].describe()
 
 tx_cluster.head()
+
+# === NEW: Mean LTV (6-month revenue) per cluster for PLTV calculation ===
+cluster_mean_ltv = tx_cluster.groupby('LTVCluster')['m6_Revenue'].mean().to_dict()
+cluster_mean_ltv
 
 """<a href = 6.1> <h3>6.1 Feature Engineering</h3></a>
 
 The code converts the categorical variable 'Segment' in the 'tx_cluster' dataframe into numerical values using one-hot encoding, resulting in a new dataframe called 'tx_class'.
 """
 
-#convert categorical columns to numerical
-tx_class = pd.get_dummies(tx_cluster) #There is only one categorical variable segment
+# convert categorical columns to numerical
+tx_class = pd.get_dummies(tx_cluster)  # There is only one categorical variable segment
 tx_class.head()
 
 """The code calculates the correlation between the 'LTVCluster' column and all other columns in the 'tx_class' dataframe. It then displays the correlations in descending order, showing the variables that are most positively or negatively correlated with the 'LTVCluster' column.
-
-
-
-
-
 """
 
-#calculate and show correlations
+# calculate and show correlations
 corr_matrix = tx_class.corr()
 corr_matrix['LTVCluster'].sort_values(ascending=False)
 
 """The code separates the feature set ('X') and the label ('y') from the 'tx_class' dataframe. It then splits the data into training and test sets using a 95:5 ratio, with 95% of the data assigned to the training set and 5% assigned to the test set.
-
-
-
-
 """
 
-#create X and y, X will be feature set and y is the label - LTV
-X = tx_class.drop(['LTVCluster','m6_Revenue'],axis=1)
+# create X and y, X will be feature set and y is the label - LTV
+X = tx_class.drop(['LTVCluster', 'm6_Revenue'], axis=1)
 y = tx_class['LTVCluster']
 
-#split training and test sets
+# split training and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.05, random_state=56)
 
 """<A href = 7><h3> 7. Machine Learning Model for Customer Lifetime Value Prediction</h3> </a>
@@ -611,22 +465,18 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.05, random
 The code trains an XGBoost classifier model for multiclassification using the training data. It then calculates and prints the accuracy of the model on both the training set and the test set. Finally, it makes predictions on the test set using the trained model.
 """
 
-#XGBoost Multiclassification Model
-ltv_xgb_model = xgb.XGBClassifier(max_depth=5, learning_rate=0.1,n_jobs=-1).fit(X_train, y_train)
+# XGBoost Multiclassification Model
+ltv_xgb_model = xgb.XGBClassifier(max_depth=5, learning_rate=0.1, n_jobs=-1)
+ltv_xgb_model.fit(X_train, y_train)
 
 print('Accuracy of XGB classifier on training set: {:.2f}'
-       .format(ltv_xgb_model.score(X_train, y_train)))
+      .format(ltv_xgb_model.score(X_train, y_train)))
 print('Accuracy of XGB classifier on test set: {:.2f}'
-       .format(ltv_xgb_model.score(X_test[X_train.columns], y_test)))
+      .format(ltv_xgb_model.score(X_test[X_train.columns], y_test)))
 
 y_pred = ltv_xgb_model.predict(X_test)
 
 """The code calculates and prints a classification report, which includes precision, recall, F1-score, and support metrics, comparing the predicted labels (y_pred) to the true labels (y_test) for evaluating the performance of the XGBoost classifier model.
-
-
-
-
-
 """
 
 print(classification_report(y_test, y_pred))
@@ -648,3 +498,29 @@ We must significantly enhance the model for other clusters. We hardly detect 67%
 - Apply hyper parameter adjustment to present model
 - If feasible, add extra data to the model
 """
+
+"""<a href=9> <h2>9. Predicted Lifetime Value (PLTV)</h2></a>
+
+We now use the trained classifier and cluster-level mean LTV to compute **Predicted Lifetime Value (PLTV)** as an expected value:
+
+PLTV = Σ P(cluster k | features) × mean_LTV(cluster k)
+"""
+
+# === PLTV CALCULATION (Expected Lifetime Value) ===
+
+# Predict probabilities for each cluster for ALL rows in X
+proba = ltv_xgb_model.predict_proba(X)          # shape: (n_samples, n_classes)
+classes = ltv_xgb_model.classes_                # cluster labels in column order
+
+# Align mean LTV vector with the order of classes
+cluster_means_vec = np.array([cluster_mean_ltv[c] for c in classes])
+
+# Expected PLTV for each customer
+expected_ltv = np.dot(proba, cluster_means_vec)
+
+# Attach PLTV and predicted hard cluster back to tx_cluster (index alignment is preserved)
+tx_cluster['PredictedCluster'] = ltv_xgb_model.predict(X)
+tx_cluster['PLTV'] = expected_ltv
+
+# Show sample of results
+tx_cluster[['CustomerID', 'Segment', 'LTVCluster', 'm6_Revenue', 'PredictedCluster', 'PLTV']].head()
